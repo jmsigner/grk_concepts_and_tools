@@ -1,7 +1,7 @@
 # Intro -----------------
 # Author: Johannes Signer
 # Date: 2025-06-27
-# Verion: v1.0
+# Version: v1.0
 
 # Aim: Calculate bioclimatic covariates for Germany
 # See here for details: https://www.worldclim.org/data/bioclim.html
@@ -16,7 +16,7 @@ library(geodata) # For data
 
 library(gstat) # For variogram and interpolation
 library(terra) # For raster data
-library(mgcv) # For GAMS
+library(mgcv) # For GAMs
 
 # Computation outline ----------------------------------------------------------
 
@@ -35,15 +35,17 @@ url <- "https://opendata.dwd.de/climate_environment/CDC/observations_germany/cli
 
 
 stations <- readLines(url)
+stations[3]
 
 # We are only interested in Lower Saxony & NRW (= Niedersachsen)
 
 str_detect(stations, "Niedersachsen|Nordrhein-Westfalen") |> table()
 stations_oi <- stations[str_detect(stations, "Niedersachsen|Nordrhein-Westfalen")]
-head(stations)
 
+stations_oi
 # Station ID
 ids <- str_extract(stations_oi, "^\\d{5}")
+ids
 
 # Station from to
 date <- str_extract_all(stations_oi, "\\d{8}") |>
@@ -57,6 +59,7 @@ xy <- str_extract_all(stations_oi, "\\d{1,2}\\.\\d{1,4}") |>
 
 # Put it all together
 sta <- bind_cols(id = ids, date, xy)
+sta
 
 # Make stations spatial
 sta <- st_as_sf(sta, coords = c("x", "y"), crs = 4326)
@@ -141,6 +144,10 @@ sta2 <- sta2 |> select(id, data) |>
 sta2 |> filter(month == "Apr") |>
     ggplot(aes(col = mean_temp)) + geom_sf()
 
+library(lubridate)
+month(sta2$start, label = TRUE)
+year(sta2$start)
+
 # Outline lower Saxony
 ger <- gadm("Germany", level = 1, path = "data/") |> st_as_sf()
 states <- filter(ger, NAME_1 %in% c("Niedersachsen", "Nordrhein-Westfalen"))
@@ -159,8 +166,12 @@ sta2 |> filter(month == "Jan") |>
 xy <- sta2 |> filter(month == "Jan") |>
     filter(!is.na(mean_temp))
 
+# Here it would be a good idea to change the crs
+
 out_rast <- rast(states, resolution = 0.05)
 values(out_rast) <- 1
+plot(out_rast)
+plot(states, add = TRUE)
 out_grid <- as.data.frame(out_rast, xy = TRUE) |>
     st_as_sf(coords = c("x", "y"), crs = 4326) |>
     st_filter(states)
@@ -177,9 +188,10 @@ nn1 |> st_as_sf() |> st_intersection(states) |>
 
 # .. 1. IDW -------------
 
-idw.1 <- gstat(formula = mean_temp ~ 1, locations = xy,
-             nmax = nrow(xy), # maximum number of neighbours
-             set = list(idp = 1)) # beta coefficient -> weighting factor
+idw.1 <- gstat(
+  formula = mean_temp ~ 1, locations = xy,
+  nmax = nrow(xy), # maximum number of neighbours
+  set = list(idp = 1)) # beta coefficient -> weighting factor
 
 # idp: determines to which degree nearer observations are prefered.
 
@@ -245,7 +257,7 @@ plot(krige.var)
 
 # .. 3. Generalised Additive Model (GAM) ----------------------------
 
-# We could also youse a gam here
+# We could also use a gam here
 
 xy$x <- st_coordinates(xy)[, 1]
 xy$y <- st_coordinates(xy)[, 2]
@@ -324,13 +336,14 @@ plot(r_temp) # Looks better
 mean(r_temp)
 
 # or
-app(r_temp, sd)
+app(r_temp, mean)
 
 # Bioclim 4
 app(r_temp, sd)
 
-# Biocom 10
+# Bioclim 10
 quarters <- list(1:3, 4:6, 7:9, 10:12)
+mean(r_temp[[1:3]][], na.rm = TRUE)
 map_dbl(quarters, ~ mean(r_temp[[.x]][], na.rm = TRUE)) # Q3 is the warmest
 
 app(r_temp[[quarters[3]]], mean)
