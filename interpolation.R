@@ -13,11 +13,10 @@ library(tidyverse) # to work with data
 library(sf) # Work with vector data
 library(mapview) # Visualize geographic data
 library(geodata) # For data
-library(spdep) # For Morans I
 
 library(gstat) # For variogram and interpolation
-library(terra)
-library(mgcv)
+library(terra) # For raster data
+library(mgcv) # For GAMS
 
 # Computation outline ----------------------------------------------------------
 
@@ -34,13 +33,12 @@ library(mgcv)
 # There is a list of all stations
 url <- "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/monthly/kl/recent/KL_Monatswerte_Beschreibung_Stationen.txt"
 
-url <- "data/KL_Monatswerte_Beschreibung_Stationen.txt"
 
 stations <- readLines(url)
 
 # We are only interested in Lower Saxony & NRW (= Niedersachsen)
 
-str_detect(stations, "Niedersachsen") |> table()
+str_detect(stations, "Niedersachsen|Nordrhein-Westfalen") |> table()
 stations_oi <- stations[str_detect(stations, "Niedersachsen|Nordrhein-Westfalen")]
 head(stations)
 
@@ -262,9 +260,6 @@ out_xy$gam <- predict(g1, newdata = out_xy)
 
 ggplot(out_xy, aes(x, y, fill = gam)) + geom_raster()
 
-gam.pred <- rasterize(out_xy, out_rast, values = out_xy$gam, fun = "mean")
-plot(gam.pred)
-
 # 3. Calculate bioclim variables ----------
 
 # Lets pick a interpolation method. For sake of simplicity, I will use use the IDW
@@ -359,3 +354,4 @@ app(r_temp[[quarters[3]]], mean)
 # - https://opendata.dwd.de/
 # - https://r-spatial.org/book/
 # - https://r.geocompx.org/
+
